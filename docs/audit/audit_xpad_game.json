@@ -1,0 +1,115 @@
+{
+ "prx": "analysis/sprx/xpad_game.prx",
+ "rea_evidence": {
+  "sc_search": "ev_b9be2997d1fe56928243d1610d1fc2e2770742d55ddcaf8ea3ac28197a52c3e9",
+  "strings": "ev_b1a50ba34667d114291a12526b73a6087dda050211a8cfcc600eb9a8607c1833"
+ },
+ "syscall_sites": [
+  {
+   "addr": "0x00000abc",
+   "num": null
+  },
+  {
+   "addr": "0x00000ac8",
+   "num": 135
+  },
+  {
+   "addr": "0x000010bc",
+   "num": 102
+  },
+  {
+   "addr": "0x000010cc",
+   "num": 104
+  },
+  {
+   "addr": "0x000010d8",
+   "num": 101
+  },
+  {
+   "addr": "0x0000125c",
+   "num": 134
+  },
+  {
+   "addr": "0x0000129c",
+   "num": null
+  },
+  {
+   "addr": "0x000012c0",
+   "num": 135
+  },
+  {
+   "addr": "0x00001370",
+   "num": 102
+  },
+  {
+   "addr": "0x000013e8",
+   "num": 138
+  },
+  {
+   "addr": "0x00001444",
+   "num": 104
+  },
+  {
+   "addr": "0x00001b1c",
+   "num": 100
+  },
+  {
+   "addr": "0x00001c5c",
+   "num": 1
+  },
+  {
+   "addr": "0x00001d24",
+   "num": 102
+  },
+  {
+   "addr": "0x00001d60",
+   "num": 1
+  },
+  {
+   "addr": "0x00001d88",
+   "num": 138
+  },
+  {
+   "addr": "0x00001dbc",
+   "num": 104
+  }
+ ],
+ "syscall_sites_unresolved": [
+  "0x00000abc",
+  "0x0000129c"
+ ],
+ "syscalls_used": [
+  1,
+  100,
+  101,
+  102,
+  104,
+  134,
+  135,
+  138
+ ],
+ "syscalls_in_source": [],
+ "syscalls_not_in_source": [
+  1,
+  100,
+  101,
+  102,
+  104,
+  134,
+  135,
+  138
+ ],
+ "binary_string_count": 117,
+ "source_strings": 30,
+ "source_strings_found_in_binary": 27,
+ "source_strings_missing_sample": [
+  "../ps3/xpad_analog.h",
+  "../ps3/xpad_rumble.h",
+  "memory"
+ ],
+ "suspicious_strings": [],
+ "library_names": [
+  "sys_fs",
+  "sys_io"
+ ]
+}

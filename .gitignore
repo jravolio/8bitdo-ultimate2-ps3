@@ -1,0 +1,25 @@
+# Allow-list: everything at the top level is ignored unless listed here. This keeps local
+# captures, backups, config.json (your PS3's address), research material, downloaded tools
+# and the downloaded XPAD Revolution files out of the repository.
+/*
+!/.gitignore
+!/.gitattributes
+!/README.md
+!/LICENSE
+!/requirements.txt
+!/requirements-dev.txt
+!/setup.cmd
+!/8bitdo-ps3.cmd
+!/pytest.ini
+!/bitdo_ps3/
+!/tests/
+!/sim/
+!/docs/
+!/tools/
+/tools/*
+!/tools/audit/
+
+/sim/build/
+/sim/ps3root/
+__pycache__/
+*.pyc

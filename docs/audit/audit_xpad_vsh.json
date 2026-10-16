@@ -1,0 +1,231 @@
+{
+ "prx": "analysis/sprx/xpad_vsh_autodiscovery.prx",
+ "rea_evidence": {
+  "sc_search": "ev_03ad1c7d88921524ada0ac6b56ef8580a8d6673ec629fe8bd3c57089df083f77",
+  "strings": "ev_bdcf0b4a4f68954824077fd2b647a7a8eea844eb1d77e0450fd5df8ad0edc694"
+ },
+ "syscall_sites": [
+  {
+   "addr": "0x00000a1c",
+   "num": 145
+  },
+  {
+   "addr": "0x00001274",
+   "num": 8
+  },
+  {
+   "addr": "0x000013cc",
+   "num": 8
+  },
+  {
+   "addr": "0x000013f8",
+   "num": 104
+  },
+  {
+   "addr": "0x00001434",
+   "num": 102
+  },
+  {
+   "addr": "0x000018c0",
+   "num": 102
+  },
+  {
+   "addr": "0x0000192c",
+   "num": 104
+  },
+  {
+   "addr": "0x00002560",
+   "num": 574
+  },
+  {
+   "addr": "0x0000256c",
+   "num": 141
+  },
+  {
+   "addr": "0x000025b0",
+   "num": 573
+  },
+  {
+   "addr": "0x000027bc",
+   "num": 44
+  },
+  {
+   "addr": "0x000027c8",
+   "num": 41
+  },
+  {
+   "addr": "0x0000359c",
+   "num": null
+  },
+  {
+   "addr": "0x000035d8",
+   "num": 101
+  },
+  {
+   "addr": "0x00003a3c",
+   "num": 100
+  },
+  {
+   "addr": "0x00004d80",
+   "num": 8
+  },
+  {
+   "addr": "0x000071e8",
+   "num": 100
+  },
+  {
+   "addr": "0x00007214",
+   "num": 100
+  },
+  {
+   "addr": "0x00007238",
+   "num": 101
+  },
+  {
+   "addr": "0x00007fa8",
+   "num": 142
+  },
+  {
+   "addr": "0x00007fe4",
+   "num": 101
+  },
+  {
+   "addr": "0x00007ff4",
+   "num": 101
+  },
+  {
+   "addr": "0x0000807c",
+   "num": 128
+  },
+  {
+   "addr": "0x00008118",
+   "num": 141
+  },
+  {
+   "addr": "0x00008134",
+   "num": 44
+  },
+  {
+   "addr": "0x000081d0",
+   "num": 100
+  },
+  {
+   "addr": "0x00008240",
+   "num": 101
+  },
+  {
+   "addr": "0x00008288",
+   "num": 142
+  },
+  {
+   "addr": "0x00008508",
+   "num": 141
+  },
+  {
+   "addr": "0x000086ac",
+   "num": 131
+  },
+  {
+   "addr": "0x00008d24",
+   "num": 44
+  },
+  {
+   "addr": "0x00008d60",
+   "num": 129
+  },
+  {
+   "addr": "0x00008d74",
+   "num": 101
+  },
+  {
+   "addr": "0x00008d8c",
+   "num": 101
+  },
+  {
+   "addr": "0x00008ea4",
+   "num": 141
+  },
+  {
+   "addr": "0x00008ed4",
+   "num": 142
+  },
+  {
+   "addr": "0x00008f40",
+   "num": 142
+  },
+  {
+   "addr": "0x000092d0",
+   "num": 41
+  }
+ ],
+ "syscall_sites_unresolved": [
+  "0x0000359c"
+ ],
+ "syscalls_used": [
+  8,
+  41,
+  44,
+  100,
+  101,
+  102,
+  104,
+  128,
+  129,
+  131,
+  141,
+  142,
+  145,
+  573,
+  574
+ ],
+ "syscalls_in_source": [
+  8,
+  41,
+  145,
+  461,
+  573,
+  574
+ ],
+ "syscalls_not_in_source": [
+  44,
+  100,
+  101,
+  102,
+  104,
+  128,
+  129,
+  131,
+  141,
+  142
+ ],
+ "binary_string_count": 597,
+ "source_strings": 272,
+ "source_strings_found_in_binary": 242,
+ "source_strings_missing_sample": [
+  " (code 0x",
+  " (pid ",
+  " custom device(s) loaded",
+  " line(s) skipped",
+  " on port ",
+  " ready, disabled (",
+  " rule(s))",
+  ") == 0 || strcasecmp(name, ",
+  "/dev_hdd0/plugins/ps3xpad/xpad_auto_inject.txt",
+  "<what> (code 0x00000000)",
+  "<what> <name> (pid N)",
+  "<what> VID:PID (code 0x00000000)",
+  "ControlStruct.h",
+  "Game Plugins",
+  "auto-inject: disabled (no /dev_hdd0/plugins/xpad_auto_inject.txt); use webMAN Game Plugins for rumble"
+ ],
+ "suspicious_strings": [],
+ "library_names": [
+  "cellUsbd",
+  "sysPrxForUser",
+  "sys_",
+  "sys_fs",
+  "sys_io",
+  "sys_net",
+  "vshtask"
+ ]
+}

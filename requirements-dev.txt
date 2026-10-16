@@ -1,0 +1,4 @@
+-r requirements.txt
+pytest>=8
+pyftpdlib>=1.5     # fake PS3 FTP server in tests/test_ps3_ftp.py
+pyflakes>=3
