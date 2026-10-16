@@ -45,7 +45,7 @@ you turn the PS3 on.
 | Analog sticks | ✅ with a DS3-like response curve (adjustable in `xpad_analog.txt`) |
 | L2 / R2 analog | ✅ full 0–255 range |
 | Pressure-sensitive face buttons | ⚠️ on or off only (0 or 255); the 8BitDo face buttons are digital |
-| Rumble | ⚠️ hold SELECT + L3 + R3 for ~1 s once a game is running. That loads XPAD's in-game module, and `ps3 log` confirms it. Works in the simulator with the freeze fix applied; not yet confirmed on a real console |
+| Rumble | ❌ **do not use the SELECT + L3 + R3 shortcut.** It loads XPAD's in-game module, and on the tested console (PS3HEN 3.4.0) that **hangs the PS3**. Rumble works normally while the receiver is on the PC. See [Roadmap](#roadmap) |
 | Sixaxis motion | ❌ games see a still controller. The controller has a motion sensor, but 8BitDo only enables it for the Switch: the receiver's XInput mode carries no motion data, and XPAD has no motion support for any controller. See [Roadmap](#roadmap) |
 | Extra buttons (L4/R4, back paddles) | ➖ map them to other buttons on the controller itself (see 8BitDo's manual) |
 
@@ -150,6 +150,9 @@ That's the whole installation. Now start it, as below.
 The plugin has to be started after each **"Enable HEN"**. HEN itself has to be re-enabled after
 every restart too.
 
+*The notification pictures below are renderings of the plugin's real on-screen messages, so you know
+what to look for. The text is exactly what the PS3 shows; they are not photographs of a TV.*
+
 1. **Turn the PS3 on and enable HEN.** Wait for the XMB.
 2. **On the PC:**
 
@@ -162,14 +165,18 @@ every restart too.
    libpad polling disabled at 0xa48a38 (module 0x230b3117, segment base 0xa40000, read back 480002c4)
    XPAD is running with the freeze fix. Plug the receiver into the PS3 and turn the controller on.
    ```
-   About 10 seconds later the PS3 shows **"XPAD Rev v1.0.0 Loaded!"**.
+   About 10 seconds later the PS3 shows:
+
+   ![PS3 notification: XPAD Rev v1.0.0 Loaded!](docs/images/xmb-notification-loaded.png)
 3. **Plug the 8BitDo receiver into a PS3 USB port** and turn the controller on (press Home). The PS3
-   shows *"XPAD Rev: 8BitDo Ultimate 2 Wireless (2.4GHz dongle) (2DC8:310B) on port N"*.
+   shows:
+
+   ![PS3 notification: XPAD Rev: 8BitDo Ultimate 2 Wireless (2.4GHz dongle) (2DC8:310B) on port 1](docs/images/xmb-notification-controller.png)
+
    - It takes the next free controller port. To make it player 1, turn the DualShock 3 off first:
      hold PS, then choose *Turn Off Controller*.
-4. **Play.** For rumble, hold **SELECT + L3 + R3** (both stick clicks) **on the 8BitDo** for about a
-   second once the game is running. The PS3 shows *"XPAD Rev: loading game module..."*. You need to do this once
-   per game you start. `.\8bitdo-ps3 ps3 log` then says whether the rumble module was loaded.
+4. **Play.** Do **not** hold SELECT + L3 + R3 on the 8BitDo: on PS3HEN that loads XPAD's in-game
+   module and hangs the console (details in [Roadmap](#roadmap)). Rumble works on the PC instead.
 
 Once it is running, you can close the terminal or turn the PC off. The plugin keeps working until
 the PS3 restarts.
@@ -357,7 +364,9 @@ Wireshark) to `captures/sim_*/`.
 ## Roadmap
 
 - [ ] Start without a PC (from the PS3 itself, or a phone browser)
-- [ ] Confirm rumble (SELECT + L3 + R3) on a real console (the simulator already passes it with the freeze fix)
+- [ ] **In-game rumble.** The simulator passes it, but on the tested console (PS3HEN 3.4.0) the
+      SELECT + L3 + R3 shortcut loads XPAD's in-game module and hangs the PS3. Needs a HEN-safe way
+      to load that module
 - [ ] Reports from other firmware / HEN / webMAN versions and from Cobra CFW
 - [ ] Wired (USB-C cable) mode: check which USB ID the controller uses and whether XPAD drives it
 - [ ] **Motion (Sixaxis).** Needs two things that don't exist yet:
