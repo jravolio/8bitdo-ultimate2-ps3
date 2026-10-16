@@ -385,11 +385,12 @@ def cmd_test(args) -> int:
         _p("The receiver is handed to the simulated PS3 via UsbDk; Windows gets it back afterwards.")
         device = RealUsbDevice(VID_8BITDO, PID_RECEIVER_XINPUT)
     _p("booting the simulated PS3 (XPAD Revolution VSH plugin, PowerPC big-endian under qemu)...")
-    rep = run_test(device=device, interactive=args.real, log=_p, native_ds3=args.with_ds3)
+    rep = run_test(device=device, interactive=args.real, log=_p, native_ds3=args.with_ds3,
+                   freeze_fix=not args.unpatched)
     for r in rep.rows:
         if not r["ok"] or args.verbose:
             _p(f"  {'PASS' if r['ok'] else 'FAIL'}  {r['check']}  {r['detail'][:110]}")
-    _p(f"{'PASS' if rep.ok else 'FAIL'}: {rep.summary()} (report: {sorted(CAPTURES.glob('sim_*'))[-1] / 'report.md'})")
+    _p(f"{'PASS' if rep.ok else 'FAIL'}: {rep.summary()} (report: {rep.out_dir / 'report.md'})")
     return 0 if rep.ok else 1
 
 
@@ -515,6 +516,7 @@ def main(argv=None) -> int:
     s = sub.add_parser("test", help="run the simulated PS3 (needs WSL, see README)")
     s.add_argument("--real", action="store_true", help="use your real receiver instead of the virtual one (UsbDk)")
     s.add_argument("--with-ds3", action="store_true", help="simulate a DualShock 3 already on port 1")
+    s.add_argument("--unpatched", action="store_true", help="run the plugin without the freeze fix")
     s.add_argument("-v", "--verbose", action="store_true")
     sub.add_parser("capture-descriptors", help="save the real receiver's USB descriptors for the simulator")
     args = ap.parse_args(argv)

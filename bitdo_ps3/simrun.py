@@ -11,7 +11,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import CAPTURES, PS3_PAYLOAD, SIM_BINARY, SIM_DIR, SIM_ROOT, XPAD_REPO
+from . import CAPTURES, PS3_PAYLOAD, SIM_BINARY, SIM_BINARY_FIXED, SIM_DIR, SIM_ROOT, XPAD_REPO
 from .bridge import Bridge
 from .xinput import XState, decode_pad, grade, walkthrough
 
@@ -31,12 +31,13 @@ def ensure_built(log=print) -> None:
     from .xpad_files import ensure_source
     ensure_source(log)
     sources = list((SIM_DIR / "shim").rglob("*.[ch]")) + [XPAD_REPO / "src" / "ps3" / "main.c", SIM_DIR / "build.sh"]
-    if SIM_BINARY.exists() and SIM_BINARY.stat().st_mtime >= _newest(sources):
+    built = [SIM_BINARY, SIM_BINARY_FIXED]
+    if all(b.exists() for b in built) and min(b.stat().st_mtime for b in built) >= _newest(sources):
         return
     log("building the PS3 simulator (powerpc-linux-gnu-gcc in WSL)...")
     r = subprocess.run(["wsl.exe", "-d", WSL_DISTRO, "--", "bash", wsl_path(SIM_DIR / "build.sh")],
                        capture_output=True, text=True)
-    if r.returncode != 0 or not SIM_BINARY.exists():
+    if r.returncode != 0 or not all(b.exists() for b in built):
         raise RuntimeError("simulator build failed:\n" + r.stdout + r.stderr)
 
 
@@ -59,6 +60,7 @@ class SimConsole:
     port: int = 0
     time_scale: float = 0.1
     native_ds3: bool = False
+    freeze_fix: bool = True   # run the plugin as `ps3 start` leaves it on the console
     out_dir: Path | None = None
     log: callable = print
     events: list = field(default_factory=list)
@@ -71,7 +73,8 @@ class SimConsole:
         self.bridge = Bridge(self.device, self.port, self.out_dir / "ps3_usb.pcap", log=self.log)
         env = [f"PS3SIM_ROOT={wsl_path(SIM_ROOT)}", f"PS3SIM_BRIDGE=127.0.0.1:{self.bridge.port}",
                f"PS3SIM_TIME_SCALE={self.time_scale}", f"PS3SIM_NATIVE_DS3={1 if self.native_ds3 else 0}"]
-        self.proc = subprocess.Popen(["wsl.exe", "-d", WSL_DISTRO, "--", "env", *env, "qemu-ppc", wsl_path(SIM_BINARY)],
+        self.proc = subprocess.Popen(["wsl.exe", "-d", WSL_DISTRO, "--", "env", *env, "qemu-ppc",
+                                      wsl_path(SIM_BINARY_FIXED if self.freeze_fix else SIM_BINARY)],
                                      stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                      text=True, bufsize=1)
         self._cv = threading.Condition()
@@ -165,7 +168,8 @@ def _pad_ev(port):
     return lambda e: e.get("ev") == "pad" and e.get("port") == port
 
 
-def run_test(device=None, interactive: bool = False, log=print, native_ds3: bool = False) -> Report:
+def run_test(device=None, interactive: bool = False, log=print, native_ds3: bool = False,
+             freeze_fix: bool = True) -> Report:
     """Full console scenario. With the VirtualReceiver it is fully automatic; with the real receiver
     (`interactive=True`) the user performs each input when prompted."""
     from .virtual_receiver import VirtualReceiver
@@ -173,7 +177,7 @@ def run_test(device=None, interactive: bool = False, log=print, native_ds3: bool
     device = device or VirtualReceiver()
     virtual = isinstance(device, VirtualReceiver)
     rep = Report()
-    con = SimConsole(device, native_ds3=native_ds3, log=log).start()
+    con = SimConsole(device, native_ds3=native_ds3, freeze_fix=freeze_fix, log=log).start()
     extra = {"device": f"{device.vid:04x}:{device.pid:04x}", "artifacts": str(con.out_dir)}
     try:
         g = "boot"
@@ -257,6 +261,14 @@ def run_test(device=None, interactive: bool = False, log=print, native_ds3: bool
             rep.add("receiver actually received the rumble packet", any(o.startswith("000800c864") for o in outs),
                     f"{len(outs)} OUT packets", g)
 
+        plog = (con.plugin_dir / "xpad.log").read_text(errors="replace") if (con.plugin_dir / "xpad.log").exists() else ""
+        if freeze_fix:
+            rep.add("freeze fix: the loader fired from XPAD's own USB data", "normalized USB combo accepted" in plog,
+                    "xpad.log: 'manual loader: normalized USB combo accepted'", g)
+            rep.add("freeze fix: XPAD never polls libpad from VSH (the cause of the XMB freeze)",
+                    "libpad monitoring ready" not in plog and "libpad init attempt" not in plog,
+                    "no 'manual loader: libpad ...' lines in xpad.log, as on the real console", g)
+
         g = "hotplug"
         m = con.mark()
         con.bridge.unplug()
@@ -270,7 +282,8 @@ def run_test(device=None, interactive: bool = False, log=print, native_ds3: bool
         rates = [e["inserts_per_s"] for e in con.events if e.get("ev") == "pad_rate"]
         extra.update({
             "device": f"{device.vid:04x}:{device.pid:04x} ({'virtual' if virtual else 'real'}, descriptors {device.descriptor_source})",
-            "plugin source": "refs/XPAD-Revolution/src/ps3/main.c (unmodified) on qemu-ppc, 32-bit big-endian",
+            "plugin source": "refs/XPAD-Revolution/src/ps3/main.c on qemu-ppc, 32-bit big-endian, "
+                             + ("with the freeze fix (as after `ps3 start`)" if freeze_fix else "unmodified"),
             "pad updates/s seen by the game thread (avg)": round(sum(rates) / len(rates), 1) if rates else "n/a",
             "USB OUT/IN transfers": f"{con.bridge.stats['out']}/{con.bridge.stats['in']}",
         })
@@ -279,4 +292,5 @@ def run_test(device=None, interactive: bool = False, log=print, native_ds3: bool
     finally:
         con.stop()
     rep.write(con.out_dir, extra)
+    rep.out_dir = con.out_dir
     return rep

@@ -20,6 +20,11 @@ of `boot_plugins.txt`, and what the freeze fix changes. You don't need any of it
 | Receiver, controller linked | USB `2DC8:310B`: an Xbox 360 style (XInput) interface, interrupt IN `0x81`, OUT `0x01`, 32-byte packets |
 | Receiver product ID / firmware | `0x6011`, firmware 1.03. These were read with the read-only query 8BitDo Ultimate Software V2 sends on connect (`81 04 00 01`, reply `02 04 …`) |
 
+The controller has a 6-axis motion sensor, but 8BitDo lists motion as "for Switch only". In
+XInput mode, over the receiver or the cable, no motion data is sent. XPAD Revolution also fills the
+DualShock 3 motion fields with a fixed neutral value (`0x0200`) for every controller it supports.
+That is why games see a still controller.
+
 Windows has an XInput driver, so the receiver works on a PC out of the box. The PS3 has no driver for
 XInput devices; it only drives its own controllers and standard HID pads. A homebrew plugin has to
 add that driver. **Nothing on the receiver or the controller is modified.** They behave the same on
@@ -78,7 +83,35 @@ The fix is a single branch in segment 0 of `xpad_vsh_autodiscovery.sprx` (the pi
 - No file on the PS3 is changed. Restarting the console removes the patch, which is why
   `ps3 start` is needed after every "Enable HEN".
 - The patch was confirmed on the real console by reading it back (`480002c4`). After that, the
-  XMB stayed responsive and the 8BitDo worked as a controller on the console.
+  XMB stayed responsive and the 8BitDo worked as a controller on the console. The plugin has run
+  for more than 30 minutes without freezing; before the fix, the freeze came after about 2.
+
+In the source, the patched branch is this check in `poll_manual_game_loader()`, which the compiler
+inlines into XPAD's main thread:
+
+```c
+  usb_port = game_loader_usb_request_port;          /* SELECT+L3+R3 seen in XPAD's own USB data */
+  if (usb_port != 0) { ... request_manual_game_load(); }
+
+  if (game_loader_last_pad_poll != 0 &&             /* <- 0x8a30..0x8a44 */
+      now - game_loader_last_pad_poll < GAME_LOADER_PAD_POLL_USEC) return;
+  ...manual_loader_combo_down();                    /* cellPadGetInfo2 / cellPadGetData: skipped */
+```
+
+The patch turns that `if` into an unconditional `return`. The USB path above it still runs, so
+**SELECT + L3 + R3 still loads the rumble module** for controllers XPAD drives itself, including
+the 8BitDo. Only the fallback is lost: it reads the combo through libpad from controllers XPAD
+doesn't drive itself (its log calls it "libpad BT"), for example a DualShock 3. Press the combo on
+the 8BitDo.
+
+The simulator applies the same change at the source level (`sim/build.sh` builds `ps3sim_fixed`)
+and checks it end to end:
+- the loader fires from the USB path (`manual loader: normalized USB combo accepted`);
+- the rumble module is loaded into the running game;
+- a game's rumble command reaches the receiver as an XInput rumble packet;
+- no `manual loader: libpad …` line ever appears.
+
+The unpatched build does log libpad polling, which shows that last check is meaningful.
 
 The offsets come from decrypting the sprx with RPCS3 (`rpcs3 --decrypt`) and disassembling it with
 rizin through REA (`tools/audit/prx_calls.py` lists the libpad call sites).
@@ -122,8 +155,9 @@ Both `.sprx` files were decrypted with RPCS3 and checked against the published s
 
 `sim/` is the "local environment" used to develop and test this without risking the console:
 
-- XPAD Revolution's **unmodified** `src/ps3/main.c` is compiled for 32-bit big-endian PowerPC,
-  which matches the byte order and pointer size of the PS3's PPU, and runs under `qemu-ppc` in WSL.
+- XPAD Revolution's `src/ps3/main.c` is compiled for 32-bit big-endian PowerPC, which matches the
+  byte order and pointer size of the PS3's PPU, and runs under `qemu-ppc` in WSL. It is built
+  twice: as published, and with the freeze fix (the default, since that is what runs on the console).
 - `sim/shim/` stands in for the parts of the PS3 the plugin talks to:
   - **USB driver layer (libusbd):** the extra-driver table with the retail size limit; probe,
     attach and detach on one USB thread, as on the PS3; asynchronous transfers.

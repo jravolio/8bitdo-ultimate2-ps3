@@ -25,6 +25,20 @@ def test_ps3_console_with_8bitdo_receiver():
     assert not failed, failed
 
 
+def test_freeze_fix_keeps_rumble_loader_and_stops_libpad_polling():
+    """The default run uses the plugin as `ps3 start` leaves it on the console. The unpatched
+    plugin is run too, to show the libpad check is meaningful: only it polls libpad from VSH."""
+    fixed = run_test(log=lambda *a: None)
+    checks = {r["check"]: r["ok"] for r in fixed.rows}
+    assert checks["SELECT+L3+R3 loads the in-game module (rumble) into the running game"]
+    assert checks["game rumble reaches the controller motors"]
+    assert checks["freeze fix: the loader fired from XPAD's own USB data"]
+    assert checks["freeze fix: XPAD never polls libpad from VSH (the cause of the XMB freeze)"]
+    orig = run_test(log=lambda *a: None, freeze_fix=False)
+    assert orig.ok, [r for r in orig.rows if not r["ok"]]
+    assert "libpad monitoring ready" in (orig.out_dir / "xpad.log").read_text(errors="replace")
+
+
 def test_with_dualshock3_already_on_port_1():
     rep = run_test(log=lambda *a: None, native_ds3=True)
     port_row = next(r for r in rep.rows if r["check"].startswith("virtual pad registered"))

@@ -235,12 +235,26 @@ def explain_log(text: str) -> list[str]:
         msgs.append("PROBLEM: the receiver presented itself as a Switch Pro Controller (057E:2009) on the PS3; "
                     "XPAD only drives XInput. Unplug it, turn the controller OFF, plug the receiver back in, "
                     "then turn the controller on (Mode switch on 2.4G). If it persists, use the USB-C cable instead.")
-    if "2DC8:3109" in text and "310B" not in text.split("2DC8:3109", 1)[1]:
-        msgs.append("The receiver was seen idle (2DC8:3109): turn the controller on (Mode switch = 2.4G, press Home)")
+    if "2DC8:3109" in text and "310B" not in text.rsplit("2DC8:3109", 1)[1]:  # the latest attach
+        msgs.append("The receiver is idle (2DC8:3109): the controller is off or asleep. Press Home to wake it")
     if "LDD table full" in text and "2DC8:310B" in text.split("LDD table full", 1)[1].split("\n", 1)[0]:
         msgs.append("PROBLEM: the PS3 USB driver table filled up before the 8BitDo entry; remove other USB plugins")
     if "USB init failed" in text:
         msgs.append("PROBLEM: " + text.split("USB init failed", 1)[1].split("\n", 1)[0].strip())
     if "XPAD Rev v1.0.0 Loaded!" in text:
         msgs.append("OK: plugin loaded")
+    # rumble: SELECT+L3+R3 in a running game loads xpad_game.sprx into it
+    if "normalized USB combo accepted" in text:
+        msgs.append("OK: SELECT+L3+R3 was recognised")
+    if "hotkey pressed but no EBOOT process" in text:
+        msgs.append("SELECT+L3+R3 was pressed outside a game: start the game first, then hold it ~1 s")
+    if "LOAD_PROC_MODULE returned OK" in text:
+        msgs.append("OK: the rumble module was loaded into the game (rumble should work in that game now)")
+    if "manual loader: load_module failed" in text:
+        msgs.append("PROBLEM: the rumble module could not be loaded into the game: "
+                    + text.split("manual loader: load_module failed", 1)[1].split("\n", 1)[0].strip())
+    if "LOAD_PROC_MODULE stuck" in text:
+        msgs.append("PROBLEM: loading the rumble module hung in the system (input keeps working; restart for rumble)")
+    if "LED/rumble transfer submit failed" in text:
+        msgs.append("PROBLEM: a rumble/LED command could not be sent to the receiver")
     return msgs or ["log present but no 8BitDo activity yet: plug the receiver into the PS3 and turn the controller on"]

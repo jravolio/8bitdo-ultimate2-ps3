@@ -45,8 +45,8 @@ you turn the PS3 on.
 | Analog sticks | ✅ with a DS3-like response curve (adjustable in `xpad_analog.txt`) |
 | L2 / R2 analog | ✅ full 0–255 range |
 | Pressure-sensitive face buttons | ⚠️ on or off only (0 or 255); the 8BitDo face buttons are digital |
-| Rumble | ⚠️ needs SELECT + L3 + R3 held for ~1 s once a game is running; not yet confirmed on a real console |
-| Sixaxis motion | ❌ the receiver sends no motion data, so games see a still controller |
+| Rumble | ⚠️ hold SELECT + L3 + R3 for ~1 s once a game is running. That loads XPAD's in-game module, and `ps3 log` confirms it. Works in the simulator with the freeze fix applied; not yet confirmed on a real console |
+| Sixaxis motion | ❌ games see a still controller. The controller has a motion sensor, but 8BitDo only enables it for the Switch: the receiver's XInput mode carries no motion data, and XPAD has no motion support for any controller. See [Roadmap](#roadmap) |
 | Extra buttons (L4/R4, back paddles) | ➖ map them to other buttons on the controller itself (see 8BitDo's manual) |
 
 **PC:** nothing changes. Windows keeps seeing an Xbox 360 controller, and the receiver itself is
@@ -167,7 +167,9 @@ every restart too.
    shows *"XPAD Rev: 8BitDo Ultimate 2 Wireless (2.4GHz dongle) (2DC8:310B) on port N"*.
    - It takes the next free controller port. To make it player 1, turn the DualShock 3 off first:
      hold PS, then choose *Turn Off Controller*.
-4. **Play.** For rumble, hold **SELECT + L3 + R3** for about a second once the game is running.
+4. **Play.** For rumble, hold **SELECT + L3 + R3** (both stick clicks) **on the 8BitDo** for about a
+   second once the game is running. The PS3 shows *"XPAD Rev: loading game module..."*. You need to do this once
+   per game you start. `.\8bitdo-ps3 ps3 log` then says whether the rumble module was loaded.
 
 Once it is running, you can close the terminal or turn the PC off. The plugin keeps working until
 the PS3 restarts.
@@ -337,8 +339,16 @@ Run:
 .\8bitdo-ps3 test              # virtual receiver, fully automatic
 .\8bitdo-ps3 test --with-ds3   # with a DualShock 3 already on port 1
 .\8bitdo-ps3 test --real       # your real receiver (needs UsbDk); you press what it asks
+.\8bitdo-ps3 test --unpatched  # the plugin without the freeze fix, for comparison
 .venv\Scripts\python -m pytest # all tests: model, FTP install, freeze fix vs a fake webMAN, simulator
 ```
+
+By default the simulator runs the plugin **with the freeze fix**, as `ps3 start` leaves it on the
+console. The simulator build applies the fix at the matching source line, a check in XPAD's game
+loader. The test then confirms three things:
+- SELECT + L3 + R3 still loads the rumble module, through XPAD's own USB data;
+- a game's rumble command reaches the receiver;
+- XPAD no longer touches the system pad library, which is what froze the XMB.
 
 On the first run, XPAD Revolution's source is cloned at the pinned commit into `refs/`, and the
 simulator is built. Each run writes a report, the plugin's log, and a USB capture (`.pcap`, opens in
@@ -347,9 +357,15 @@ Wireshark) to `captures/sim_*/`.
 ## Roadmap
 
 - [ ] Start without a PC (from the PS3 itself, or a phone browser)
-- [ ] Confirm rumble (SELECT + L3 + R3) on a real console
+- [ ] Confirm rumble (SELECT + L3 + R3) on a real console (the simulator already passes it with the freeze fix)
 - [ ] Reports from other firmware / HEN / webMAN versions and from Cobra CFW
 - [ ] Wired (USB-C cable) mode: check which USB ID the controller uses and whether XPAD drives it
+- [ ] **Motion (Sixaxis).** Needs two things that don't exist yet:
+  1. a USB mode that carries the controller's motion data. Users report that a beta receiver
+     firmware from 8BitDo support adds a Switch Pro Controller mode (SELECT + Y) with motion. That
+     is unverified for this model, and this project doesn't flash firmware.
+  2. a PS3 driver that reads Switch Pro Controller motion reports and fills in the DualShock 3
+     motion fields. XPAD Revolution always sends a neutral value there.
 
 ## Contributing
 

@@ -44,6 +44,17 @@ def test_explain_log_switch_mode_problem():
     assert any("Switch Pro" in m for m in msgs)
 
 
+def test_explain_log_rumble_loader():
+    log = ("[3.096] manual loader: normalized USB combo accepted on port (code 0x00000001)\n"
+           "[3.105] manual loader: loading xpad_game.sprx into BLUS30443_main_EBOOT.BIN (pid 16843264)\n"
+           "[3.110] manual loader: LOAD_PROC_MODULE returned OK for BLUS30443_main_EBOOT.BIN (pid 16843264)\n")
+    msgs = explain_log(log)
+    assert any("SELECT+L3+R3 was recognised" in m for m in msgs)
+    assert any("rumble module was loaded" in m for m in msgs)
+    msgs = explain_log("[9.0] manual loader: hotkey pressed but no EBOOT process was found\n")
+    assert any("start the game first" in m for m in msgs)
+
+
 def test_explain_log_ok():
     msgs = explain_log("XPAD Rev v1.0.0 Loaded!\nattach starting for 2DC8:310B\nattach OK, LDD pad port 0\n"
                        "first input report received from 2DC8:310B (code 0x00000014)")

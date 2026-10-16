@@ -6,6 +6,7 @@ __version__ = "1.0.0"
 ROOT = Path(__file__).resolve().parents[1]
 SIM_DIR = ROOT / "sim"
 SIM_BINARY = SIM_DIR / "build" / "ps3sim"
+SIM_BINARY_FIXED = SIM_DIR / "build" / "ps3sim_fixed"   # with the in-memory freeze fix, as on the console
 SIM_ROOT = SIM_DIR / "ps3root"
 XPAD_REPO = ROOT / "refs" / "XPAD-Revolution"
 PS3_PAYLOAD = ROOT / "ps3" / "plugins" / "ps3xpad"
