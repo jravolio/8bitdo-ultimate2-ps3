@@ -83,7 +83,11 @@ Bluetooth. Use the 2.4G receiver.
   (details in [How it works](docs/HOW_IT_WORKS.md#why-not-boot_pluginstxt)). If XPAD is already
   listed there, `install` removes that one line (after a backup) and keeps the rest of the file.
 - **The freeze fix is applied in memory only.** It is a one-instruction change in the running plugin,
-  checked byte by byte before it is written. Restarting the PS3 removes it, and no file is modified.
+  checked byte by byte before it is written. Restarting the PS3 removes it, and no plugin file is
+  modified.
+- **`/dev_hdd0/autoexec.bat`** gets a marked block (`install` turns this on; `--no-autorun` skips
+  it). It is how the PS3 starts the plugin by itself, without a PC. Anything else already in that
+  file is kept, and `ps3 autorun --off` removes only our block.
 - **Where the plugin files come from:** XPAD Revolution's own GitHub repository, at a pinned
   commit, checked against SHA-256 hashes before anything is sent to the PS3. They are not included
   here.
@@ -140,49 +144,54 @@ copying to 192.168.1.50:
   ok  /dev_hdd0/plugins/ps3xpad/xpad_vsh_autodiscovery.sprx (30343 bytes)
   ok  /dev_hdd0/plugins/ps3xpad/xpad_game.sprx (7731 bytes)
   ...
-installed. Nothing was added to boot_plugins.txt: the plugin only runs when started from this PC.
+turning on the on-console auto-start:
+  ok  /dev_hdd0/autoexec.bat (on-console auto-start written)
+installed: the PS3 now starts XPAD and the freeze fix by itself after every "Enable HEN"
+(no PC needed, nothing added to boot_plugins.txt; `8bitdo-ps3 ps3 autorun --off` undoes it)
 ```
 
-That's the whole installation. Now start it, as below.
+That's the whole installation. From now on the PS3 starts the plugin on its own; below is what you
+will see.
 
 ## Every time you play
 
 The plugin has to be started after each **"Enable HEN"**. HEN itself has to be re-enabled after
-every restart too.
+every restart too. `install` already made the PS3 do all of that by itself, so normally you never
+touch the PC again.
 
 *The notification pictures below are renderings of the plugin's real on-screen messages, so you know
 what to look for. The text is exactly what the PS3 shows; they are not photographs of a TV.*
 
-1. **Turn the PS3 on and enable HEN.** Wait for the XMB.
-2. **On the PC:**
-
-   ```powershell
-   .\8bitdo-ps3 ps3 start
-   ```
-   ```text
-   PS3MAPI via HTTP
-   asked webMAN to load XPAD
-   libpad polling disabled at 0xa48a38 (module 0x230b3117, segment base 0xa40000, read back 480002c4)
-   XPAD is running with the freeze fix. Plug the receiver into the PS3 and turn the controller on.
-   ```
-   About 10 seconds later the PS3 shows:
+1. **Turn the PS3 on and enable HEN.** Wait for the XMB. About 15 seconds later the PS3 shows:
 
    ![PS3 notification: XPAD Rev v1.0.0 Loaded!](docs/images/xmb-notification-loaded.png)
-3. **Plug the 8BitDo receiver into a PS3 USB port** and turn the controller on (press Home). The PS3
+2. **Plug the 8BitDo receiver into a PS3 USB port** and turn the controller on (press Home). The PS3
    shows:
 
    ![PS3 notification: XPAD Rev: 8BitDo Ultimate 2 Wireless (2.4GHz dongle) (2DC8:310B) on port 1](docs/images/xmb-notification-controller.png)
 
    - It takes the next free controller port. To make it player 1, turn the DualShock 3 off first:
      hold PS, then choose *Turn Off Controller*.
-4. **Play.** Do **not** hold SELECT + L3 + R3 on the 8BitDo: on PS3HEN that loads XPAD's in-game
+3. **Play.** Do **not** hold SELECT + L3 + R3 on the 8BitDo: on PS3HEN that loads XPAD's in-game
    module and hangs the console (details in [Roadmap](#roadmap)). Rumble works on the PC instead.
 
-Once it is running, you can close the terminal or turn the PC off. The plugin keeps working until
-the PS3 restarts.
+That is it — the console loaded the plugin and the freeze fix on its own, and the PC can stay off.
+`.\8bitdo-ps3 status` shows the mode (`on-console auto-start: ON`). `ps3 autorun --off` turns it
+back off, and `ps3 autorun` turns it on again.
 
-**Don't want to type it every time?** Leave this running on the PC. It notices each time HEN comes
-up and starts the plugin for you:
+**Prefer to start it from the PC?** Turn the on-console start off once, then use `ps3 start` (or
+keep `ps3 watch` running and it notices each time HEN comes up):
+
+```powershell
+.\8bitdo-ps3 ps3 autorun --off
+.\8bitdo-ps3 ps3 start
+```
+```text
+PS3MAPI via HTTP
+asked webMAN to load XPAD
+libpad polling disabled at 0xa48a38 (module 0x230b3117, segment base 0xa40000, read back 480002c4)
+XPAD is running with the freeze fix. Plug the receiver into the PS3 and turn the controller on.
+```
 
 ```powershell
 .\8bitdo-ps3 ps3 watch
@@ -228,8 +237,9 @@ Command Prompt. Add `--host <PS3 IP>` to any PS3 command to skip the network sea
 | `status` | Receiver, PC, DualShock 3 and PS3 at a glance |
 | `use ps3` / `use pc` | Switch helpers (see above) |
 | `ps3 find` | Find the PS3 on the local network and remember its address |
-| `ps3 install` | Download and verify XPAD Revolution, copy it to the PS3, clean up old auto-start entries |
+| `ps3 install` | Download and verify XPAD Revolution, copy it to the PS3, turn on the on-console auto-start (`--no-autorun` skips it) |
 | `ps3 start` | Start the plugin with the freeze fix (after every "Enable HEN") |
+| `ps3 autorun` | Turn the on-console auto-start on or off: after every "Enable HEN" the PS3 starts the plugin + freeze fix by itself, no PC (`--off` to remove; on by default after `install`) |
 | `ps3 watch` | Keep running and do `ps3 start` by itself after every boot (`--minutes N` to stop after N minutes) |
 | `ps3 status` | Details: files on the PS3, `boot_plugins.txt`, whether the plugin is running and patched |
 | `ps3 log` | Download the plugin's own log and explain it in plain words |
@@ -238,6 +248,7 @@ Command Prompt. Add `--host <PS3 IP>` to any PS3 command to skip the network sea
 | `ps3 restore` | Remove XPAD from every `boot_plugins.txt` (for a PS3 that hangs on "Enable HEN"). `--wait` keeps trying until the PS3 answers |
 | `recovery-stick` | Prepare a USB stick that makes HEN load only webMAN (see Troubleshooting) |
 | `pc-test` | Live view of what Windows games receive, plus a short rumble pulse |
+| `rumble-check` | Pulse both motors and require the receiver's ACK for every packet (`--pulses`, `--duration-ms`, `--strength`, `--wait`) |
 | `test` | Run the simulated PS3 (developers, see [Local test environment](#local-test-environment)) |
 
 ## Troubleshooting
@@ -363,7 +374,7 @@ Wireshark) to `captures/sim_*/`.
 
 ## Roadmap
 
-- [ ] Start without a PC (from the PS3 itself, or a phone browser)
+- [x] Start without a PC (`ps3 autorun`: a webMAN script in `/dev_hdd0/autoexec.bat`)
 - [ ] **In-game rumble.** The simulator passes it, but on the tested console (PS3HEN 3.4.0) the
       SELECT + L3 + R3 shortcut loads XPAD's in-game module and hangs the PS3. Needs a HEN-safe way
       to load that module

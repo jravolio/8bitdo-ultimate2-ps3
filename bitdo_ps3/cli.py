@@ -5,10 +5,12 @@
   8bitdo-ps3 ps3 find                find the PS3 on the local network (webMAN MOD's FTP server)
   8bitdo-ps3 ps3 install             download + verify XPAD Revolution, copy it to the PS3
   8bitdo-ps3 ps3 start               start it now (after every "Enable HEN"), freeze fix applied
+  8bitdo-ps3 ps3 autorun             let the PS3 start it by itself (no PC); `--off` to remove
   8bitdo-ps3 ps3 watch               keep running: does `ps3 start` by itself after every boot
   8bitdo-ps3 ps3 status|log|live|uninstall|restore
   8bitdo-ps3 recovery-stick          make a USB stick that boots HEN with only webMAN
   8bitdo-ps3 pc-test                 live view of what Windows games receive + rumble pulse
+  8bitdo-ps3 rumble-check            pulse the motors and require the receiver's ACK
   8bitdo-ps3 test [--real]           run the simulated PS3 (the plugin's real code under qemu-ppc)
   8bitdo-ps3 capture-descriptors     save the real receiver's USB descriptors for the simulator
 """
@@ -86,6 +88,8 @@ def cmd_status(args) -> int:
                         "not running (run `8bitdo-ps3 ps3 start`)"))
     except Exception as exc:
         _p(f"  could not ask webMAN whether XPAD is running ({exc.__class__.__name__})")
+    if s["on_console_autostart"]:
+        _p("  on-console auto-start: ON (starts XPAD + the freeze fix after every \"Enable HEN\", no PC)")
     if s["in_boot_plugins"] or s["old_autoexec_block"]:
         _p("  leftover auto-start entry found: run `8bitdo-ps3 ps3 install` to clean it up")
     return 0
@@ -115,15 +119,17 @@ def _host(args) -> str:
 NEXT_STEPS_PS3 = """
 Every time you turn the PS3 on:
   1. Enable HEN as usual and wait until the XMB is back (webMAN shows its welcome message).
-  2. On this PC run `8bitdo-ps3 ps3 start` (or keep `8bitdo-ps3 ps3 watch` running and it does
-     it for you). About 10 s later the PS3 shows "XPAD Rev v1.0.0 Loaded!".
-  3. Plug the 8BitDo receiver into a PS3 USB port and turn the controller on (Home).
+     About 15 s later the PS3 starts the plugin by itself: "XPAD Rev v1.0.0 Loaded!".
+     (To start it from this PC instead: run `8bitdo-ps3 ps3 autorun --off` once, then
+     `8bitdo-ps3 ps3 start` each time, or keep `8bitdo-ps3 ps3 watch` running.)
+  2. Plug the 8BitDo receiver into a PS3 USB port and turn the controller on (Home).
      It becomes the next free controller (turn the DualShock 3 off first to make it player 1).
-  4. Rumble in games: hold SELECT + L3 + R3 for about 1 s once the game is running.
+  3. Do NOT hold SELECT + L3 + R3 in a game on this build: it loads XPAD's in-game module, which
+     hangs the console on PS3HEN (the log stops at "all hooks active"). Rumble works on a PC instead.
 If something is off, `8bitdo-ps3 ps3 log` explains what the plugin saw."""
 
 
-def cmd_install(host: str) -> None:
+def cmd_install(host: str, autorun: bool = True) -> None:
     from .ps3ftp import PS3
     from .xpad_files import XPAD_COMMIT, fetch
     _p(f"XPAD Revolution @ {XPAD_COMMIT[:7]}: checking the files (SHA-256 pinned)")
@@ -133,9 +139,45 @@ def cmd_install(host: str) -> None:
         _p(f"copying to {host}:")
         ps3.install(payload, log=_p)
         ps3.remove_old_autostart(log=_p)
+        if autorun:
+            _p("turning on the on-console auto-start:")
+            ps3.autorun_install(log=_p)
     finally:
         ps3.close()
-    _p("installed. Nothing was added to boot_plugins.txt: the plugin only runs when started from this PC.")
+    if autorun:
+        _p('installed: the PS3 now starts XPAD and the freeze fix by itself after every "Enable HEN"')
+        _p('(no PC needed, nothing added to boot_plugins.txt; `8bitdo-ps3 ps3 autorun --off` undoes it)')
+    else:
+        _p("installed. Nothing was added to boot_plugins.txt: the plugin only runs when started from this PC.")
+
+
+AUTORUN_MESSAGE = """
+On-console auto-start is on: after every "Enable HEN" webMAN starts XPAD and applies the freeze
+fix by itself (a script in /dev_hdd0/autoexec.bat). No PC is needed; nothing is added to
+boot_plugins.txt. Turn the PS3 off and on, enable HEN, wait ~15 s, and the 8BitDo just works.
+  - The plugin's own log (`8bitdo-ps3 ps3 log`) confirms each boot.
+  - To go back to starting it from the PC, run `8bitdo-ps3 ps3 autorun --off`."""
+
+
+def cmd_autorun(host: str, off: bool = False) -> int:
+    """Manage the PC-free auto-start: a webMAN script in /dev_hdd0/autoexec.bat that loads XPAD and
+    applies the freeze fix in memory after every "Enable HEN", with no PC involved."""
+    from .ps3ftp import PS3
+    ps3 = PS3(host)
+    try:
+        if not ps3.status()["installed"]:
+            _p("XPAD is not installed on the PS3 yet: run `8bitdo-ps3 ps3 install` first")
+            return 2
+        if off:
+            changed = ps3.autorun_remove(log=_p)
+            _p("on-console auto-start removed" if changed else "there was no on-console auto-start to remove")
+            return 0
+        _p("writing the on-console auto-start:")
+        ps3.autorun_install(log=_p)
+    finally:
+        ps3.close()
+    _p(AUTORUN_MESSAGE)
+    return 0
 
 
 def _installed(host: str) -> bool:
@@ -307,14 +349,17 @@ def cmd_ps3(args) -> int:
         return 0 if found else 1
     host = _host(args)
     if args.action == "install":
-        cmd_install(host)
+        cmd_install(host, autorun=not args.no_autorun)
         _p(NEXT_STEPS_PS3)
         return 0
     if args.action == "start":
         return cmd_start(host)
+    if args.action == "autorun":
+        return cmd_autorun(host, off=args.off)
     ps3 = PS3(host)
     try:
         if args.action == "uninstall":
+            ps3.autorun_remove(log=_p)
             ps3.remove_old_autostart(log=_p)
             ps3.uninstall_files(log=_p)
             _p("uninstalled (a copy that is running right now stays until the PS3 restarts)")
@@ -416,6 +461,31 @@ def cmd_pc_test(args) -> int:
     return 0
 
 
+def _short_ack(ack: str | None) -> str:
+    return " ".join(ack.split()[:6]) + (" ..." if ack else "") if ack else "none"
+
+
+def cmd_rumble_check(args) -> int:
+    from .vendor_hid import verify_rumble
+    _p(f"pulsing both motors {args.pulses} time(s) at {args.strength}/255 for {args.duration_ms} ms")
+    result = verify_rumble(pulses=args.pulses, duration_ms=args.duration_ms, strength=args.strength,
+                           gap_ms=args.gap_ms, wait=args.wait, log=_p)
+    if result.error:
+        _p(f"  ERROR: {result.error}")
+    _p(f"  report-state ACK: {_short_ack(result.state_ack)}")
+    for i, pulse in enumerate(result.pulses, 1):
+        _p(f"  pulse {i} ACK: {_short_ack(pulse.ack)}")
+    _p(f"  stop ACK: {_short_ack(result.stop_ack)}")
+    if result.ok:
+        _p("PASS: the receiver acknowledged every rumble packet")
+        _p("note: this is device-level confirmation; the protocol has no motor-movement sensor")
+        return 0
+    _p("FAIL: at least one command was not acknowledged")
+    if not result.error:
+        _p("  turn the controller on (press Home), then retry with `--wait 60`")
+    return 1
+
+
 def cmd_capture_descriptors(args) -> int:
     from . import PID_RECEIVER_XINPUT, VID_8BITDO
     from .bridge import RealUsbDevice
@@ -499,9 +569,11 @@ def main(argv=None) -> int:
     s = sub.add_parser("use", help="switch: `use ps3` starts the PS3 side, `use pc` checks the PC side")
     s.add_argument("target", choices=["ps3", "pc"])
     s.add_argument("--host", help="PS3 IP address")
-    s = sub.add_parser("ps3", help="PS3 side: find, install, start, watch, status, log, live, uninstall, restore")
-    s.add_argument("action", choices=["find", "install", "start", "watch", "status", "log", "live", "uninstall", "restore"])
+    s = sub.add_parser("ps3", help="PS3 side: find, install, start, autorun, watch, status, log, live, uninstall, restore")
+    s.add_argument("action", choices=["find", "install", "start", "autorun", "watch", "status", "log", "live", "uninstall", "restore"])
     s.add_argument("--host", help="PS3 IP address (found automatically otherwise)")
+    s.add_argument("--off", action="store_true", help="autorun: remove the on-console auto-start")
+    s.add_argument("--no-autorun", action="store_true", help="install: don't turn on the on-console auto-start")
     s.add_argument("--minutes", type=float, default=0,
                    help="watch: stop after N minutes (default: run until Ctrl+C); restore: how long to keep trying")
     s.add_argument("--settle", type=float, default=15,
@@ -513,6 +585,12 @@ def main(argv=None) -> int:
     s.add_argument("--minutes", type=float, default=10)
     s = sub.add_parser("pc-test", help="live view of what Windows games receive (XInput) + rumble pulse")
     s.add_argument("--seconds", type=float, default=15)
+    s = sub.add_parser("rumble-check", help="pulse the motors and require the receiver's ACK")
+    s.add_argument("--pulses", type=int, default=3)
+    s.add_argument("--duration-ms", type=int, default=700)
+    s.add_argument("--strength", type=int, default=255, help="0-255, both motors")
+    s.add_argument("--gap-ms", type=int, default=300)
+    s.add_argument("--wait", type=float, default=0, help="seconds to wait for the controller to link")
     s = sub.add_parser("test", help="run the simulated PS3 (needs WSL, see README)")
     s.add_argument("--real", action="store_true", help="use your real receiver instead of the virtual one (UsbDk)")
     s.add_argument("--with-ds3", action="store_true", help="simulate a DualShock 3 already on port 1")
@@ -523,5 +601,5 @@ def main(argv=None) -> int:
     if args.cmd == "ps3" and args.action == "restore" and not args.minutes:
         args.minutes = 10
     return {"status": cmd_status, "use": cmd_use, "test": cmd_test, "pc-test": cmd_pc_test,
-            "capture-descriptors": cmd_capture_descriptors, "ps3": cmd_ps3,
-            "recovery-stick": cmd_recovery_stick}[args.cmd](args)
+            "rumble-check": cmd_rumble_check, "capture-descriptors": cmd_capture_descriptors,
+            "ps3": cmd_ps3, "recovery-stick": cmd_recovery_stick}[args.cmd](args)

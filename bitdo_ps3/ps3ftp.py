@@ -30,7 +30,59 @@ AUTOEXEC = "/dev_hdd0/autoexec.bat"
 DISABLE_FLAG = PLUGIN_DIR + "/disabled"
 AUTOEXEC_BEGIN = "# >>> 8bitdo-ps3"
 AUTOEXEC_END = "# <<< 8bitdo-ps3"
+# On-console auto-start (the PC-free mode). Its markers deliberately do not match AUTOEXEC_BEGIN, so
+# `remove_old_autostart()` (which strips the old, broken /loadprx_ps3 block) keeps this one.
+AUTORUN_BEGIN = "# >>> 8bitdo ps3 autorun"
+AUTORUN_END = "# <<< 8bitdo ps3 autorun"
+# webMAN MOD's /setmem.ps3mapi searches process memory (`find=`) upward from `addr` and STOPS at the
+# first unmapped page, and the VSH process address space is fragmented, so one wide search cannot
+# cross a gap. The plugin's segment base moves from boot to boot (~0xAF0000 seen, ~0x2F10000 seen),
+# so we search the big low region in one request, then sweep the higher range in windows. Each
+# command gets its own line: webMAN only splits ';' when a line starts with a letter, and these
+# start with '/'.
+AUTORUN_LOW = (0x100000, 0x8D0000)          # the VSH executable + main heap: one contiguous region
+AUTORUN_TILE_LO, AUTORUN_TILE_HI, AUTORUN_TILE_STEP = 0x8D0000, 0x3000000, 0x20000
+AUTORUN_ISLANDS = [0xB30000, 0x1750000, 0x2B50000]  # 64KB islands, too small to be caught by tiling
+AUTORUN_LOG = "/dev_hdd0/tmp/8bitdo_ps3_autorun.log"
 CONFIG = ROOT / "config.json"
+
+
+def _autorun_find(lo: int, hi: int, find: str, offset: int, val: str, pid: int) -> str:
+    return (f"/setmem.ps3mapi?proc=0x{pid:x}&addr=0x{lo:x}&stop=0x{hi:x}"
+            f"&find={find}&offset={offset}&val={val}")
+
+
+def autorun_block() -> bytes:
+    """The autoexec.bat block that starts XPAD and applies the freeze fix on the console itself."""
+    from .ps3mapi import CONTEXT, CONTEXT_OFFSET, PATCHED, PATCH_OFFSET, VSH_PID
+    # The freeze-fix branch sits 4 bytes into the block we search for (the context starts at
+    # CONTEXT_OFFSET; 0x8A30..0x8A34 is e8090000 2fa00000, so the unique needle starts at +4).
+    find = CONTEXT[4:].hex()
+    offset = PATCH_OFFSET - (CONTEXT_OFFSET + 4)
+    val = PATCHED.hex()
+
+    cmds = [_autorun_find(*AUTORUN_LOW, find, offset, val, VSH_PID)]
+    lo = AUTORUN_TILE_LO
+    while lo < AUTORUN_TILE_HI:
+        cmds.append(_autorun_find(lo, lo + AUTORUN_TILE_STEP, find, offset, val, VSH_PID))
+        lo += AUTORUN_TILE_STEP
+    for base in AUTORUN_ISLANDS:
+        cmds.append(_autorun_find(base, base + AUTORUN_TILE_STEP, find, offset, val, VSH_PID))
+
+    lines = [
+        AUTORUN_BEGIN,
+        "# Start XPAD Revolution after each \"Enable HEN\" and apply the freeze fix in memory,",
+        "# on the console itself, without a PC. Managed by `8bitdo-ps3 ps3 autorun`.",
+        f"logfile {AUTORUN_LOG}",
+        "log Debug",   # trace every line of this boot to the log file (support + diagnosis)
+        "wait xmb",    # webMAN starts before the XMB at boot; the plugin can only load once it is up
+        "wait 3",
+        f"/vshplugin.ps3mapi?load_slot=0&prx={PLUGIN_LINE}",
+        "wait 2",
+    ]
+    lines += cmds
+    lines += [AUTORUN_END, "", ""]  # the blank line at the end is required by webMAN's script parser
+    return "\r\n".join(lines).encode("latin-1")
 
 
 def load_config() -> dict:
@@ -175,6 +227,55 @@ class PS3:
         except ftplib.error_perm:
             pass
 
+    # -- on-console auto-start (PC-free) ---------------------------------------------------
+    def _strip_autorun(self, data: bytes) -> bytes | None:
+        """Return data with our autorun block removed, or None if it was not there."""
+        if AUTORUN_BEGIN.encode() not in data:
+            return None
+        head, rest = data.split(AUTORUN_BEGIN.encode(), 1)
+        tail = rest.split(AUTORUN_END.encode(), 1)[1] if AUTORUN_END.encode() in rest else b""
+        return head.rstrip(b"\r\n") + (b"\r\n" + tail.lstrip(b"\r\n") if tail.strip() else b"")
+
+    def autorun_state(self) -> dict:
+        raw = self.read(AUTOEXEC) or b""
+        return {"on_console_autostart": AUTORUN_BEGIN.encode() in raw}
+
+    def autorun_install(self, log=print) -> None:
+        """Put (or refresh) the autoexec.bat block that starts XPAD + the freeze fix on the console.
+        Anything else already in autoexec.bat is kept byte for byte."""
+        self.mkdirs(PLUGIN_DIR)
+        old = self.read(AUTOEXEC) or b""
+        base = self._strip_autorun(old)
+        if base is None:
+            base = old
+        if base.strip():
+            BACKUPS.mkdir(parents=True, exist_ok=True)
+            (BACKUPS / time.strftime("autoexec_%Y%m%d_%H%M%S.bat")).write_bytes(old)
+        new = (base.rstrip(b"\r\n") + b"\r\n" if base.strip() else b"") + autorun_block()
+        self.write(AUTOEXEC, new)
+        back = self.read(AUTOEXEC) or b""
+        ok = AUTORUN_BEGIN.encode() in back and AUTORUN_END.encode() in back
+        log(f"  {'ok ' if ok else 'BAD'} {AUTOEXEC} (on-console auto-start {'written' if ok else 'NOT written'})")
+        if not ok:
+            raise RuntimeError("could not write the on-console auto-start")
+
+    def autorun_remove(self, log=print) -> bool:
+        """Remove our autoexec.bat block. Returns True if it was present."""
+        old = self.read(AUTOEXEC)
+        if old is None:
+            return False
+        new = self._strip_autorun(old)
+        if new is None:
+            return False
+        BACKUPS.mkdir(parents=True, exist_ok=True)
+        (BACKUPS / time.strftime("autoexec_%Y%m%d_%H%M%S.bat")).write_bytes(old)
+        if new.strip():
+            self.write(AUTOEXEC, new)
+        else:
+            self.ftp.delete(AUTOEXEC)
+        log("  removed the on-console auto-start from " + AUTOEXEC)
+        return True
+
     # -- plugin files ---------------------------------------------------------------------
     def install(self, payload: Path = PS3_PAYLOAD, log=print) -> None:
         self.mkdirs(PLUGIN_DIR)
@@ -208,6 +309,7 @@ class PS3:
         return {
             "host": self.host, "banner": self.banner, "boot_plugins_file": path, "boot_plugins": lines,
             "in_boot_plugins": PLUGIN_LINE in lines, "old_autoexec_block": AUTOEXEC_BEGIN.encode() in old,
+            "on_console_autostart": AUTORUN_BEGIN.encode() in old,
             "files": files, "installed": all(files.values()),
             "files_match_pinned": all(files.get(n) == size for n, size in SIZES.items()),
         }
@@ -248,7 +350,13 @@ def explain_log(text: str) -> list[str]:
         msgs.append("OK: SELECT+L3+R3 was recognised")
     if "hotkey pressed but no EBOOT process" in text:
         msgs.append("SELECT+L3+R3 was pressed outside a game: start the game first, then hold it ~1 s")
-    if "LOAD_PROC_MODULE returned OK" in text:
+    tail = text.rstrip().splitlines()[-1].strip() if text.strip() else ""
+    if "all hooks active" in tail:
+        # the pinned XPAD build loads the game module, then hangs the console the moment it hooks in
+        msgs.append("PROBLEM: the in-game rumble module activated its hooks and the console hung right there "
+                    "(the log stops at this line). XPAD's game module is not safe on this PS3HEN build: restart "
+                    "the PS3, then don't use SELECT+L3+R3.")
+    elif "LOAD_PROC_MODULE returned OK" in text:
         msgs.append("OK: the rumble module was loaded into the game (rumble should work in that game now)")
     if "manual loader: load_module failed" in text:
         msgs.append("PROBLEM: the rumble module could not be loaded into the game: "

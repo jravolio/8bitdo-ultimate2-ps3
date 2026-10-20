@@ -53,6 +53,11 @@ class PS3MAPIClient:
             line = self.f.readline().decode("latin-1").rstrip(CRLF)
             if not line:
                 raise ConnectionError("PS3MAPI closed the connection")
+            # The server greets twice: "220 OK: PS3 Manager API Server v1." on connect and then
+            # "230 OK: Connected to PS3 Manager API Server."; the second would otherwise be read
+            # as the reply to the first command and every reply would lag by one.
+            if line.startswith("230 OK: Connected"):
+                continue
             if re.match(r"^\d{3} ", line):
                 return line
 
